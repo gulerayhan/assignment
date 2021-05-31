@@ -1,0 +1,123 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "type": "string"
+    },
+    "adminPassword": {
+      "type": "securestring"
+    },
+    "vmNamePrefix": {
+      "type": "string",
+      "defaultValue": "[concat('WebSrv-', uniquestring(resourceGroup().id))]"
+    },
+    "imagePublisher": {
+      "type": "string",
+      "defaultValue": "MicrosoftWindowsServer"
+    },
+    "imageOffer": {
+      "type": "string",
+      "defaultValue": "WindowsServer"
+    },
+    "imageSKU": {
+      "type": "string",
+      "defaultValue": "2012-R2-Datacenter"
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_B1ls",
+      "metadata": {
+        "description": "Size of the VM"
+      }
+    }
+  },
+  "resources": [    
+  
+   {
+    "name": "storageTemplate",
+    "type": "Microsoft.Resources/deployments",
+    "apiVersion": "2018-05-01",
+    "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+            "uri":"https://raw.githubusercontent.com/gulerayhan/assignment/main/Storage.json",
+            "contentVersion":"1.0.0.0"
+        }
+
+        }
+   },
+   {
+    "name": "virtualNetworkTemplate",
+    "type": "Microsoft.Resources/deployments",
+    "apiVersion": "2018-05-01",
+    "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+            "uri":"https://raw.githubusercontent.com/gulerayhan/assignment/main/NW.json",
+            "contentVersion":"1.0.0.0"
+        }
+        }
+    },
+   {
+    "name": "NICTemplate",
+    "type": "Microsoft.Resources/deployments",
+    "apiVersion": "2018-05-01",
+    "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+            "uri":"https://raw.githubusercontent.com/gulerayhan/assignment/main/NIC.json",
+            "contentVersion":"1.0.0.0"
+        }
+        }
+    },   
+    {
+      "apiVersion": "2016-04-30-preview",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat(parameters('vmNamePrefix'))]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "storageTemplate",
+        "NICTemplate",
+        "AVSetTemplate"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[concat(parameters('vmNamePrefix'))]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[parameters('imagePublisher')]",
+            "offer": "[parameters('imageOffer')]",
+            "sku": "[parameters('imageSKU')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[reference('NICTemplate').outputs.NICId.value]"
+            }
+          ]
+        },
+        "diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": true,
+            "storageUri": "[reference('storageTemplate').outputs.StandardstorageUri.value]"
+          }
+        }
+      }
+    }
+  ]
+}
