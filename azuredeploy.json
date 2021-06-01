@@ -1,0 +1,216 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "type": "string"
+    },
+    "adminPassword": {
+      "type": "securestring"
+    },
+    "patchMode": {
+      "type": "string",
+      "defaultvalue": "Manual"
+    },
+    "enableHotpatching": {
+      "type": "bool",
+      "defaultValue": false
+    },    
+    "enableAcceleratedNetworking": {
+       "type": "bool",
+       "defaultValue": true
+    },
+    "vmName": {
+      "type": "string",
+      "defaultValue": "[concat('WebSrv', uniquestring(resourceGroup().id))]"
+    },
+    "nicNamePrefix": {
+      "type": "string",
+      "defaultValue": "NIC"
+    },
+    "imagePublisher": {
+      "type": "string",
+      "defaultValue": "MicrosoftWindowsServer"
+    },
+    "imageOffer": {
+      "type": "string",
+      "defaultValue": "WindowsServer"
+    },
+    "imageSKU": {
+      "type": "string",
+      "defaultValue": "2019-Datacenter-Core-with-Containers"
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_DS2_v2"
+    },
+    "sizeOfEachDataDiskInGB": {
+      "type": "string",
+      "defaultValue": "1024"
+    }
+  },
+  "resources": [    
+  
+   {
+    "name": "storageTemplate",
+    "type": "Microsoft.Resources/deployments",
+    "apiVersion": "2018-05-01",
+    "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+            "uri":"https://raw.githubusercontent.com/gulerayhan/assignment/main/Storage.json",
+            "contentVersion":"1.0.0.0"
+        }
+
+        }
+   },
+   {
+    "name": "virtualNetworkTemplate",
+    "type": "Microsoft.Resources/deployments",
+    "apiVersion": "2018-05-01",
+    "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+            "uri":"https://raw.githubusercontent.com/gulerayhan/assignment/main/NW.json",
+            "contentVersion":"1.0.0.0"
+        }
+        }
+    },
+    {
+        "apiVersion": "2018-11-30",
+        "name": "[parameters('vmName')]",
+        "location": "[resourceGroup().location]",
+        "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+        "properties": {}            
+    },
+    {
+      "apiVersion": "2020-11-01",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat(parameters('nicNamePrefix'))]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "virtualNetworkTemplate"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Static",
+              "privateIPAddress": "10.10.1.10",
+              "subnet": {
+                "id": "[reference('virtualNetworkTemplate').outputs.WebSubnetRef.value]"
+              }              
+            }
+          }
+        ],
+        "enableAcceleratedNetworking": "[parameters('enableAcceleratedNetworking')]"
+      }
+    },   
+    {
+      "apiVersion": "2020-12-01",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[parameters('vmName')]",
+      "identity": {
+        "type": "userAssigned",
+        "userAssignedIdentities": {
+            "[resourceID('Microsoft.ManagedIdentity/userAssignedIdentities/',parameters('vmName'))]": {}
+        }
+    },
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "storageTemplate",
+        "[concat('Microsoft.Network/networkInterfaces/', parameters('nicNamePrefix'))]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "osProfile": {
+          "computerName": "vmName",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]",
+          "windowsConfiguration": {
+            "enableAutomaticUpdates": false,
+            "provisionVmAgent": true,
+            "patchSettings": {
+                "enableHotpatching": "[parameters('enableHotpatching')]",
+                "patchMode": "[parameters('patchMode')]"
+                             }
+                }
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[parameters('imagePublisher')]",
+            "offer": "[parameters('imageOffer')]",
+            "sku": "[parameters('imageSKU')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "createOption": "FromImage",
+            "vhd": {
+                    "uri": "[concat(reference('storageTemplate').outputs.PremiumstorageUri.value, 'default/', 'vhds/', parameters('vmName'), '.vhd')]"
+                    
+                   },
+            "name": "[parameters('vmName')]"
+          },          
+          "dataDisks": [
+            {
+              "diskSizeGB": "[parameters('sizeOfEachDataDiskInGB')]",
+              "vhd": {
+                    "uri": "[concat(reference('storageTemplate').outputs.StandardstorageUri.value, 'default/', 'vhds/', parameters('vmName'), '1', '.vhd')]"
+                    
+                   },
+              "lun": 0,
+              "createOption": "Empty",
+              "name": "[concat(parameters('vmName'), '1')]"
+            },
+            {
+              "diskSizeGB": "[parameters('sizeOfEachDataDiskInGB')]",
+              "vhd": {
+                    "uri": "[concat(reference('storageTemplate').outputs.StandardstorageUri.value, 'default/', 'vhds/', parameters('vmName'), '2', '.vhd')]"
+                    
+                   },
+              "lun": 1,
+              "createOption": "Empty",
+              "name": "[concat(parameters('vmName'), '2')]"
+            },
+            {
+              "diskSizeGB": "[parameters('sizeOfEachDataDiskInGB')]",
+              "vhd": {
+                    "uri": "[concat(reference('storageTemplate').outputs.StandardstorageUri.value, 'default/', 'vhds/', parameters('vmName'), '3', '.vhd')]"
+                    
+                   },
+              "lun": 2,
+              "createOption": "Empty",
+              "name": "[concat(parameters('vmName'), '3')]"
+            },
+            {
+              "diskSizeGB": "[parameters('sizeOfEachDataDiskInGB')]",
+              "vhd": {
+                    "uri": "[concat(reference('storageTemplate').outputs.StandardstorageUri.value, 'default/', 'vhds/', parameters('vmName'), '4', '.vhd')]"
+                    
+                   },
+              "lun": 3,
+              "createOption": "Empty",
+              "name": "[concat(parameters('vmName'), '4')]"
+            }
+          ]
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(parameters('nicNamePrefix')))]"
+            }
+          ]
+        },
+        "diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": true,
+            "storageUri": "[reference('storageTemplate').outputs.StandardstorageUri.value]"
+          }
+        }
+      }
+    }
+  ]
+}
