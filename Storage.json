@@ -1,0 +1,82 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "StandardStorageType": {
+            "type": "string",
+            "defaultValue": "Standard_LRS"
+        },
+        "PremiumStorageType": {
+            "type": "string",
+            "defaultValue": "Premium_LRS"
+        },
+        "StandardStorageName":{
+            "type": "string",
+            "defaultValue": "[concat('standard', uniquestring(resourceGroup().id))]"
+          },
+        "PremiumStorageName":{
+            "type": "string",
+            "defaultValue": "[concat('premium', uniquestring(resourceGroup().id))]"
+          },
+        "containerPrefix": {
+            "type": "string",
+            "defaultValue": "vhds"
+          }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[parameters('StandardStorageName')]",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2018-07-01",
+            "sku": {
+                "name": "[parameters('StandardstorageType')]"
+            },
+            "kind": "StorageV2"
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "name": "[parameters('PremiumStorageName')]",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2018-07-01",
+            "sku": {
+                "name": "[parameters('PremiumstorageType')]"
+            },
+            "kind": "StorageV2"
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2019-06-01",
+            "name": "[concat(parameters('PremiumStorageName'), '/default/', parameters('containerPrefix'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('PremiumStorageName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2019-06-01",
+            "name": "[concat(parameters('StandardStorageName'), '/default/', parameters('containerPrefix'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('StandardStorageName'))]"
+            ]
+        }
+    ],
+    "outputs": {
+        "StandardstorageUri": {
+            "type": "string",
+            "value": "[reference(parameters('standardstorageName')).primaryEndpoints.blob]"
+          },
+        "PremiumstorageUri": {
+            "type": "string",
+            "value": "[reference(parameters('PremiumstorageName')).primaryEndpoints.blob]"
+          },
+        "StandardStorageName": {
+            "type": "string",
+            "value": "[parameters('standardstorageName')]"
+          },
+        "PremiumStorageName": {
+            "type": "string",
+            "value": "[parameters('premiumstorageName')]"
+          }
+      }
+}
